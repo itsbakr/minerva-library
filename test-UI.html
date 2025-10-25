@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Library Search Test</title>
+    <style>
+        body { font-family: Arial; max-width: 1000px; margin: 50px auto; }
+        .result { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .title { font-size: 18px; font-weight: bold; color: #2563eb; }
+        .meta { color: #666; font-size: 14px; }
+        .score { background: #10b981; color: white; padding: 3px 8px; border-radius: 3px; }
+        .open-access { background: #10b981; color: white; padding: 3px 8px; border-radius: 3px; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Minerva Library Search</h1>
+    <input type="text" id="query" placeholder="Enter search query" style="width: 70%; padding: 10px; font-size: 16px;">
+    <button onclick="search()" style="padding: 10px 20px; font-size: 16px;">Search</button>
+    
+    <div id="results"></div>
+
+    <script>
+        async function search() {
+            const query = document.getElementById('query').value;
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p>Searching...</p>';
+            
+            try {
+                const response = await fetch(`http://localhost:8000/api/search?q=${encodeURIComponent(query)}&per_page=10`);
+                const data = await response.json();
+                
+                let html = `<h2>Found ${data.total_results} results in ${data.search_time}s</h2>`;
+                html += `<p>Searched: ${data.databases_searched.join(', ')}</p>`;
+                
+                data.results.forEach(result => {
+                    html += `
+                        <div class="result">
+                            <div class="title">${result.title}</div>
+                            <div class="meta">
+                                ${result.authors.map(a => a.name).join(', ')} 
+                                (${result.publication_year || 'N/A'})
+                                | ${result.source}
+                                | Citations: ${result.cited_by_count}
+                                | <span class="score">Score: ${result.relevance_score}</span>
+                                ${result.is_open_access ? '<span class="open-access">OPEN ACCESS</span>' : ''}
+                            </div>
+                            ${result.abstract ? `<p>${result.abstract.substring(0, 200)}...</p>` : ''}
+                            ${result.url ? `<a href="${result.url}" target="_blank">View Article</a>` : ''}
+                        </div>
+                    `;
+                });
+                
+                resultsDiv.innerHTML = html;
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>
