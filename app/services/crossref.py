@@ -63,15 +63,15 @@ class CrossRefService:
         except Exception as e:
             print(f"CrossRef error: {type(e).__name__}: {e}")
             return [], 0
-    def _clean_html(text: str) -> str:
-    """Remove HTML tags from text"""
-    if not text:
-        return text
-    # Remove HTML tags
-    clean = re.sub(r'<[^>]+>', '', text)
-    # Remove extra whitespace
-    clean = ' '.join(clean.split())
-    return clean
+    def _clean_html(self, text: str) -> str:
+        """Remove HTML tags from text"""
+        if not text:
+            return text
+        # Remove HTML tags
+        clean = re.sub(r'<[^>]+>', '', text)
+        # Remove extra whitespace
+        clean = ' '.join(clean.split())
+        return clean
 
     def _parse_work(self, work: dict) -> Optional[SearchResult]:
         """Parse CrossRef work into SearchResult model"""
