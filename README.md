@@ -1,7 +1,7 @@
 # 🔍 Minerva Library Search API
 
 A unified search interface that simultaneously searches multiple academic databases (OpenAlex, CrossRef, and more) and returns deduplicated, ranked results through a single API endpoint.
-<img width="2194" height="1594" alt="tg_image_2950331415" src="https://github.com/user-attachments/assets/cf924fd3-f99b-4118-ab59-0ad488693cf6" />
+<img width="1676" height="1072" alt="image" src="https://github.com/user-attachments/assets/29891fd2-fd50-44d2-9220-4b56dbdf2d71" />
 
 Built as part of Minerva University's work-study program to improve student research efficiency.
 
@@ -50,6 +50,7 @@ Built as part of Minerva University's work-study program to improve student rese
 - 🎨 React frontend interface
 - 🔖 User accounts and saved searches
 - 📱 Mobile-responsive design
+<img width="1670" height="1110" alt="image" src="https://github.com/user-attachments/assets/b2a130a3-dac4-4a57-bc59-98ab6231be61" />
 
 ---
 
