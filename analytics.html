@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Analytics - Minerva Library</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #000000;
+            color: #ffffff;
+            min-height: 100vh;
+            padding: 0;
+        }
+        
+        /* Header */
+        .header {
+            background: #000000;
+            padding: 20px 40px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .logo-section img {
+            height: 40px;
+            width: auto;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .nav-links a {
+            color: #ffffff;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: opacity 0.3s;
+        }
+        
+        .nav-links a:hover {
+            opacity: 0.7;
+        }
+        
+        .content {
+            padding: 60px 40px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .hero-section {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+        
+        .hero-section h1 {
+            font-family: 'Playfair Display', Georgia, serif;
+            font-size: 3.5em;
+            font-weight: 400;
+            margin-bottom: 20px;
+            color: #ffffff;
+            line-height: 1.2;
+        }
+        
+        .hero-section p {
+            font-size: 1.1em;
+            color: rgba(255, 255, 255, 0.8);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 25px;
+            margin-bottom: 60px;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            transition: all 0.3s;
+        }
+        
+        .stat-card:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 215, 0, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .stat-card h3 {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+        
+        .stat-card .value {
+            font-size: 3em;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #FFD700;
+        }
+        
+        .stat-card .unit {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .section {
+            margin-bottom: 50px;
+        }
+        
+        .section-title {
+            font-family: 'Playfair Display', Georgia, serif;
+            font-size: 2em;
+            font-weight: 400;
+            margin-bottom: 30px;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .chart-container {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 40px;
+            height: 400px;
+            position: relative;
+        }
+        
+        .history-table {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        thead {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        th {
+            padding: 20px;
+            text-align: left;
+            font-weight: 600;
+            color: #ffffff;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        td {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        tbody tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-right: 6px;
+        }
+        
+        .badge-db {
+            background: rgba(255, 215, 0, 0.2);
+            color: #FFD700;
+            border: 1px solid rgba(255, 215, 0, 0.3);
+        }
+        
+        .query-badge {
+            background: rgba(255, 215, 0, 0.15);
+            color: #FFD700;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin: 4px;
+            display: inline-block;
+            border: 1px solid rgba(255, 215, 0, 0.3);
+        }
+        
+        .query-count {
+            font-weight: 600;
+            color: #FFD700;
+            margin-left: 10px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 80px 20px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 18px;
+        }
+        
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+        
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+        
+        .error {
+            background: rgba(220, 38, 38, 0.2);
+            color: #ff6b6b;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid rgba(220, 38, 38, 0.3);
+        }
+        
+        .refresh-btn {
+            padding: 14px 28px;
+            background: #FFD700;
+            color: #000000;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-bottom: 30px;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .refresh-btn:hover {
+            background: #FFC700;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255, 215, 0, 0.3);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        .time-badge {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .common-queries-container {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 30px;
+        }
+        
+        .query-item {
+            margin-bottom: 20px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .query-item:last-child {
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo-section">
+            <img src="https://cdn.prod.website-files.com/64ca995f0fd30a33b2fd01cc/64ca995f0fd30a33b2fd03e4_minerva.svg" alt="Minerva University">
+        </div>
+        <div class="nav-links">
+            <a href="test-UI.html">Search</a>
+            <a href="analytics.html">Analytics</a>
+        </div>
+    </div>
+    
+    <div class="content">
+        <div class="hero-section">
+            <h1>Search Analytics</h1>
+            <p>Track search patterns and performance metrics</p>
+        </div>
+        
+        <button class="refresh-btn" onclick="loadAnalytics()">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M8 2V6M8 10V14M2 8H6M10 8H14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Refresh Data
+        </button>
+        
+        <div id="loading" class="loading">Loading analytics</div>
+        <div id="error" style="display: none;"></div>
+        
+        <div id="content" style="display: none;">
+            <!-- Stats Cards -->
+            <div class="stats-grid" id="statsGrid"></div>
+            
+            <!-- Charts Section -->
+            <div class="section">
+                <div class="section-title">Search Trends</div>
+                <div class="chart-container">
+                    <canvas id="searchTimeChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Most Common Queries</div>
+                <div class="common-queries-container" id="commonQueries"></div>
+            </div>
+            
+            <!-- Recent Searches -->
+            <div class="section">
+                <div class="section-title">Recent Searches</div>
+                <div class="history-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Query</th>
+                                <th>Results</th>
+                                <th>Time</th>
+                                <th>Databases</th>
+                                <th>Timestamp</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let searchTimeChart = null;
+        
+        async function loadAnalytics() {
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const content = document.getElementById('content');
+            
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            content.style.display = 'none';
+            
+            try {
+                // Load stats and history in parallel
+                const [statsResponse, historyResponse] = await Promise.all([
+                    fetch('http://localhost:8000/api/search/stats'),
+                    fetch('http://localhost:8000/api/search/history?limit=50')
+                ]);
+                
+                if (!statsResponse.ok || !historyResponse.ok) {
+                    throw new Error('Failed to fetch analytics data');
+                }
+                
+                const stats = await statsResponse.json();
+                const history = await historyResponse.json();
+                
+                displayStats(stats);
+                displayHistory(history);
+                displayCommonQueries(stats);
+                createCharts(history);
+                
+                loading.style.display = 'none';
+                content.style.display = 'block';
+            } catch (err) {
+                loading.style.display = 'none';
+                error.style.display = 'block';
+                error.innerHTML = `
+                    <div class="error">
+                        <strong>Error:</strong> ${err.message}<br>
+                        Make sure the API server is running at http://localhost:8000
+                    </div>
+                `;
+            }
+        }
+        
+        function displayStats(stats) {
+            const statsGrid = document.getElementById('statsGrid');
+            
+            statsGrid.innerHTML = `
+                <div class="stat-card">
+                    <h3>Total Searches</h3>
+                    <div class="value">${stats.total_searches || 0}</div>
+                    <div class="unit">searches performed</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Average Search Time</h3>
+                    <div class="value">${(stats.average_search_time || 0).toFixed(2)}</div>
+                    <div class="unit">seconds per search</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Top Queries</h3>
+                    <div class="value">${stats.most_common_queries?.length || 0}</div>
+                    <div class="unit">unique popular queries</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Database Coverage</h3>
+                    <div class="value">3</div>
+                    <div class="unit">databases integrated</div>
+                </div>
+            `;
+        }
+        
+        function displayHistory(history) {
+            const tbody = document.getElementById('historyTableBody');
+            
+            if (history.searches.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" style="text-align: center; padding: 60px; color: rgba(255,255,255,0.6);">
+                            No search history yet. Start searching to see analytics!
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = history.searches.map(search => {
+                const timestamp = new Date(search.timestamp).toLocaleString();
+                const databases = Array.isArray(search.databases) 
+                    ? search.databases.map(db => `<span class="badge badge-db">${db}</span>`).join('')
+                    : '';
+                
+                return `
+                    <tr>
+                        <td><strong>${search.query}</strong></td>
+                        <td>${search.results_count}</td>
+                        <td><span class="time-badge">${search.search_time}s</span></td>
+                        <td>${databases}</td>
+                        <td>${timestamp}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        function createCharts(history) {
+            // Destroy existing chart if it exists
+            if (searchTimeChart) {
+                searchTimeChart.destroy();
+            }
+            
+            // Prepare data for search time chart
+            const recentSearches = history.searches.slice(0, 20).reverse();
+            const labels = recentSearches.map((_, i) => `Search ${i + 1}`);
+            const searchTimes = recentSearches.map(s => s.search_time);
+            
+            const ctx = document.getElementById('searchTimeChart').getContext('2d');
+            searchTimeChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Search Time (seconds)',
+                        data: searchTimes,
+                        borderColor: '#FFD700',
+                        backgroundColor: 'rgba(255, 215, 0, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#FFD700',
+                        pointBorderColor: '#000000',
+                        pointBorderWidth: 2,
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                color: '#ffffff',
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#FFD700',
+                            bodyColor: '#ffffff',
+                            borderColor: '#FFD700',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Time (seconds)',
+                                color: '#ffffff'
+                            },
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.7)'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Recent Searches',
+                                color: '#ffffff'
+                            },
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.7)'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function displayCommonQueries(stats) {
+            const container = document.getElementById('commonQueries');
+            
+            if (!stats.most_common_queries || stats.most_common_queries.length === 0) {
+                container.innerHTML = '<div class="empty-state">No query data available yet</div>';
+                return;
+            }
+            
+            container.innerHTML = stats.most_common_queries.map(item => `
+                <div class="query-item">
+                    <span class="query-badge">${item.query}</span>
+                    <span class="query-count">${item.count} searches</span>
+                </div>
+            `).join('');
+        }
+        
+        // Load analytics on page load
+        window.addEventListener('load', () => {
+            loadAnalytics();
+            // Auto-refresh every 30 seconds
+            setInterval(loadAnalytics, 30000);
+        });
+    </script>
+</body>
+</html>

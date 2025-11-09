@@ -1,8 +1,10 @@
 import asyncio
 from typing import List
+from difflib import SequenceMatcher
 from app.api.models import SearchResult
 from app.services.openalex import OpenAlexService
 from app.services.crossref import CrossRefService
+from app.services.unpaywall import UnpaywallService
 
 class SearchAggregator:
     async def search_all(
@@ -15,16 +17,16 @@ class SearchAggregator:
         open_access_only=False
     ) -> tuple[List[SearchResult], int, List[str]]:
         """
-        Search all databases in parallel
+        Search all databases in parallel and enrich with Unpaywall
         Returns: (combined_results, total_count, databases_searched)
         """
         
         # Create service instances
         openalex = OpenAlexService()
         crossref = CrossRefService()
+        unpaywall = UnpaywallService()
         
         # Create search tasks for parallel execution
-        # Note: CrossRef doesn't support open_access_only filter
         tasks = [
             openalex.search(
                 query=query, 
@@ -40,6 +42,11 @@ class SearchAggregator:
                 per_page=per_page,
                 year_min=year_min,
                 year_max=year_max
+            ),
+            unpaywall.search(
+                query=query,
+                page=page,
+                per_page=per_page // 2  # Unpaywall typically returns fewer results
             )
         ]
         
@@ -61,19 +68,16 @@ class SearchAggregator:
                 continue
             
             db_results, db_count = result
-            
-            # If open_access_only is True, filter CrossRef results
-            if i == 1 and open_access_only:  # CrossRef results
-                # We'll filter these after checking with Unpaywall later
-                # For now, just include them
-                pass
-            
             all_results.extend(db_results)
             total_count += db_count
             
-            db_name = "OpenAlex" if i == 0 else "CrossRef"
+            db_names = ["OpenAlex", "CrossRef", "Unpaywall"]
             if db_results:
-                databases.append(db_name)
+                databases.append(db_names[i])
+        
+        # Enrich CrossRef/OpenAlex results with Unpaywall OA info
+        print(f"Enriching {len(all_results)} results with Unpaywall OA data...")
+        all_results = await unpaywall.enrich_with_oa(all_results)
         
         # Remove duplicates
         deduplicated = self._deduplicate(all_results)
@@ -85,33 +89,87 @@ class SearchAggregator:
         # Rank by relevance
         ranked = self._rank_results(deduplicated, query)
         
-        # Return all results (pagination handled by frontend or later)
         return ranked, len(ranked), databases
     
     def _deduplicate(self, results: List[SearchResult]) -> List[SearchResult]:
-        """Remove duplicate results based on DOI and title"""
+        """
+        Remove duplicate results using multiple strategies:
+        1. Exact DOI match
+        2. Exact title match
+        3. Fuzzy title match (>90% similar)
+        """
         seen_dois = set()
-        seen_titles = set()
+        seen_titles = {}  # title -> result mapping for fuzzy comparison
         unique_results = []
         
         for result in results:
-            # Check DOI first (most reliable)
+            is_duplicate = False
+            
+            # Strategy 1: Check DOI (most reliable)
             if result.doi and result.doi.strip():
                 doi_normalized = result.doi.strip().lower()
                 if doi_normalized in seen_dois:
-                    continue
-                seen_dois.add(doi_normalized)
+                    is_duplicate = True
+                else:
+                    seen_dois.add(doi_normalized)
             
-            # Check title (normalized)
-            if result.title:
+            # Strategy 2: Check exact title match
+            if not is_duplicate and result.title:
                 title_normalized = result.title.lower().strip()
+                
+                # Check exact match
                 if title_normalized in seen_titles:
-                    continue
-                seen_titles.add(title_normalized)
+                    is_duplicate = True
+                else:
+                    # Strategy 3: Check fuzzy match against all seen titles
+                    for seen_title, seen_result in seen_titles.items():
+                        similarity = self._calculate_similarity(
+                            title_normalized, 
+                            seen_title
+                        )
+                        
+                        if similarity > 0.90:  # 90% similar = duplicate
+                            is_duplicate = True
+                            # Keep the one with more metadata
+                            if self._has_more_metadata(result, seen_result):
+                                # Replace old one with new one
+                                unique_results.remove(seen_result)
+                                unique_results.append(result)
+                                seen_titles[title_normalized] = result
+                            break
+                    
+                    if not is_duplicate:
+                        seen_titles[title_normalized] = result
             
-            unique_results.append(result)
+            if not is_duplicate:
+                unique_results.append(result)
         
+        print(f"Deduplication: {len(results)} → {len(unique_results)} results")
         return unique_results
+    
+    def _calculate_similarity(self, str1: str, str2: str) -> float:
+        """Calculate similarity ratio between two strings (0-1)"""
+        return SequenceMatcher(None, str1, str2).ratio()
+    
+    def _has_more_metadata(self, result1: SearchResult, result2: SearchResult) -> bool:
+        """Compare two results and return True if result1 has more metadata"""
+        score1 = sum([
+            bool(result1.abstract),
+            bool(result1.doi),
+            bool(result1.open_access_url),
+            len(result1.authors),
+            bool(result1.publication_year)
+        ])
+        
+        score2 = sum([
+            bool(result2.abstract),
+            bool(result2.doi),
+            bool(result2.open_access_url),
+            len(result2.authors),
+            bool(result2.publication_year)
+        ])
+        
+        return score1 > score2
     
     def _rank_results(self, results: List[SearchResult], query: str) -> List[SearchResult]:
         """Rank results by relevance"""
@@ -120,9 +178,9 @@ class SearchAggregator:
         for result in results:
             score = 0.0
             
-            # Open access bonus
+            # Open access bonus (increased weight)
             if result.is_open_access:
-                score += 50
+                score += 60  # Increased from 50
             
             # Recent publication bonus
             if result.publication_year:
