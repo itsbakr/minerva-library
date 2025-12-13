@@ -19,8 +19,13 @@ class UnpaywallService:
         **filters
     ) -> tuple[List[SearchResult], int]:
         """
-        Search Unpaywall by title
-        Note: Unpaywall's search is basic, mainly used for DOI lookups
+        Search Unpaywall by title (NOT RECOMMENDED - use enrich_with_oa instead)
+        
+        WARNING: Unpaywall does NOT have a public search API. Their API is designed 
+        for DOI lookups only. This method exists for compatibility but will likely 
+        return empty results. Use enrich_with_oa() to check DOIs for open access.
+        
+        See: https://unpaywall.org/products/api
         """
         
         try:

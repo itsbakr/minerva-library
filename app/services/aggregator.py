@@ -27,6 +27,8 @@ class SearchAggregator:
         unpaywall = UnpaywallService()
         
         # Create search tasks for parallel execution
+        # Note: Unpaywall doesn't have a public search API - it's only for DOI lookups
+        # So we only search OpenAlex and CrossRef, then enrich with Unpaywall OA data
         tasks = [
             openalex.search(
                 query=query, 
@@ -42,11 +44,6 @@ class SearchAggregator:
                 per_page=per_page,
                 year_min=year_min,
                 year_max=year_max
-            ),
-            unpaywall.search(
-                query=query,
-                page=page,
-                per_page=per_page // 2  # Unpaywall typically returns fewer results
             )
         ]
         
@@ -62,22 +59,30 @@ class SearchAggregator:
         total_count = 0
         databases = []
         
+        db_names = ["OpenAlex", "CrossRef"]
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                print(f"Error in database {i}: {result}")
+                print(f"Error in database {db_names[i]}: {result}")
                 continue
             
             db_results, db_count = result
             all_results.extend(db_results)
             total_count += db_count
             
-            db_names = ["OpenAlex", "CrossRef", "Unpaywall"]
             if db_results:
                 databases.append(db_names[i])
         
         # Enrich CrossRef/OpenAlex results with Unpaywall OA info
+        # This is Unpaywall's primary purpose - checking DOIs for open access availability
         print(f"Enriching {len(all_results)} results with Unpaywall OA data...")
+        results_before = sum(1 for r in all_results if r.is_open_access)
         all_results = await unpaywall.enrich_with_oa(all_results)
+        results_after = sum(1 for r in all_results if r.is_open_access)
+        
+        # Add Unpaywall to databases list if it found any OA versions
+        if results_after > results_before:
+            databases.append("Unpaywall (OA enrichment)")
+            print(f"Unpaywall found {results_after - results_before} additional open access versions")
         
         # Remove duplicates
         deduplicated = self._deduplicate(all_results)
