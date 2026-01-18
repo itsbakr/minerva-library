@@ -28,19 +28,24 @@ Built as part of Minerva University's work-study program to improve student rese
 
 ## ✨ Features
 
-### Current Features (v0.1.0)
+### Current Features
 
 - **🔎 Unified Search**: Search multiple academic databases with a single query
 - **⚡ Parallel API Calls**: Searches databases simultaneously for fast results (<2 seconds)
-- **🎯 Smart Ranking**: Multi-factor relevance scoring (open access, citations, recency, keywords)
-- **🔄 Deduplication**: Automatically removes duplicate articles across databases
+- **🎯 Smart Ranking**: Advanced relevance scoring with phrase matching, coverage analysis, and quality signals
+- **🔄 Intelligent Deduplication**: Merges duplicate records from multiple sources for richer metadata
+- **📊 Provider Status Tracking**: Real-time visibility into which databases returned results, response times, and errors
+- **⏱️ Timeout Handling**: Graceful degradation - if one provider is slow, others continue
 - **📅 Advanced Filtering**: Filter by publication year, open access status, and more
-- **📊 Rich Metadata**: Titles, authors, abstracts, DOIs, citation counts, and full-text links
-- **🌐 Open Access Detection**: Identifies freely available articles
-- **📚 Multiple Databases**: 
+- **📚 Rich Metadata**: Titles, authors, abstracts, DOIs, citation counts, and full-text links
+- **🌐 Open Access Detection**: Identifies freely available articles via Unpaywall enrichment
+- **📈 Structured Logging**: Detailed logs for debugging and monitoring provider performance
+- **🗄️ Multiple Databases**: 
   - OpenAlex (250+ million scholarly works)
   - CrossRef (140+ million scholarly records)
-  - More coming soon (EBSCO, JSTOR, Unpaywall)
+  - Unpaywall (DOI-based open access enrichment)
+  - More coming soon (EBSCO, JSTOR)
+
 
 ### Coming Soon
 
@@ -80,15 +85,17 @@ Built as part of Minerva University's work-study program to improve student rese
 ┌─────────────────────────────────────────────────────┐
 │         Result Aggregation & Processing              │
 │  • Combine results from all databases                │
-│  • Remove duplicates (DOI + title matching)          │
-│  • Rank by relevance                                 │
-│  • Add metadata and access indicators                │
+│  • Merge duplicates (DOI + fuzzy title matching)     │
+│  • Enrich with Unpaywall open access data            │
+│  • Rank by advanced relevance algorithm              │
+│  • Track provider status & response times            │
 └──────────────────┬──────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────────────────┐
 │         Unified Search Results (JSON)                │
 │  • Sorted by relevance score                         │
-│  • Full metadata included                            │
+│  • Merged metadata from multiple sources             │
+│  • Provider status for observability                 │
 │  • ~1-2 second response time                         │
 └─────────────────────────────────────────────────────┘
 ```
@@ -105,11 +112,11 @@ Built as part of Minerva University's work-study program to improve student rese
 - **[Uvicorn](https://www.uvicorn.org/)** - Lightning-fast ASGI server
 
 ### APIs Integrated
-- **[OpenAlex](https://openalex.org/)** - Open scholarly metadata (free, no auth)
-- **[CrossRef](https://www.crossref.org/)** - Scholarly metadata and DOI resolution (free)
-- **[Unpaywall](https://unpaywall.org/)** - Open access discovery (coming soon)
-- **EBSCO Discovery Service** - Institutional databases (coming soon)
-- **JSTOR** - Historical and humanities content (coming soon)
+- **[OpenAlex](https://openalex.org/)** - Open scholarly metadata (free, no auth required)
+- **[CrossRef](https://www.crossref.org/)** - Scholarly metadata and DOI resolution (free, no auth required)
+- **[Unpaywall](https://unpaywall.org/)** - Open access discovery via DOI enrichment (free, email required)
+- **EBSCO Discovery Service** - Institutional databases (pending credentials)
+- **JSTOR** - Historical and humanities content (pending credentials)
 
 ### Development Tools
 - **Git** - Version control
@@ -221,19 +228,48 @@ curl "http://localhost:8000/api/search?q=quantum+computing&page=2&per_page=20"
       ],
       "abstract": "This latest Fifth Assessment Report of the IPCC...",
       "publication_year": 2014,
-      "source": "OpenAlex",
+      "source": "OpenAlex+CrossRef",
       "doi": "10.1017/cbo9781107415324",
       "url": "https://doi.org/10.1017/cbo9781107415324",
       "is_open_access": true,
       "open_access_url": "https://escholarship.org/content/qt2j42x9fh/qt2j42x9fh.pdf",
       "cited_by_count": 11567,
-      "relevance_score": 90.0
+      "relevance_score": 145.8
     }
   ],
   "search_time": 1.47,
-  "databases_searched": ["OpenAlex", "CrossRef"]
+  "databases_searched": ["OpenAlex", "CrossRef", "Unpaywall (OA enrichment)"],
+  "provider_status": [
+    {
+      "name": "OpenAlex",
+      "status": "ok",
+      "results_count": 15,
+      "response_time": 0.823,
+      "error_message": null
+    },
+    {
+      "name": "CrossRef",
+      "status": "ok",
+      "results_count": 12,
+      "response_time": 1.156,
+      "error_message": null
+    },
+    {
+      "name": "Unpaywall",
+      "status": "ok",
+      "results_count": 3,
+      "response_time": 2.341,
+      "error_message": null
+    }
+  ]
 }
 ```
+
+**Provider Status Values:**
+- `ok` - Provider responded successfully
+- `error` - Provider encountered an error (see error_message)
+- `timeout` - Provider exceeded timeout threshold (30s)
+- `partial` - Provider returned incomplete results
 
 #### `GET /health`
 
@@ -302,9 +338,10 @@ minerva-library-search/
 - Metadata extraction
 
 **`app/services/aggregator.py`**
-- Parallel API call orchestration
-- Deduplication logic (DOI + title matching)
-- Relevance ranking algorithm
+- Parallel API call orchestration with timeout handling
+- Smart deduplication with record merging (DOI + fuzzy title matching)
+- Advanced relevance ranking with phrase matching and quality signals
+- Provider status tracking and structured logging
 
 ---
 
@@ -405,21 +442,26 @@ curl "http://localhost:8000/api/search?q=climate+change&page=2&per_page=10"
 
 ## 🗺️ Roadmap
 
-### Phase 1: Core Functionality ✅ (Current)
+### Phase 1: Core Functionality
 - [x] FastAPI backend setup
 - [x] OpenAlex API integration
 - [x] CrossRef API integration
-- [x] Parallel search execution
-- [x] Deduplication system
-- [x] Relevance ranking
+- [x] Unpaywall API integration (OA enrichment)
+- [x] Parallel search execution with timeout handling
+- [x] Smart deduplication with record merging
+- [x] Advanced relevance ranking algorithm
 - [x] Year filtering
-- [x] Open access detection
+- [x] Open access detection and enrichment
+- [x] Provider status tracking and observability
+- [x] Structured logging for debugging
 
-### Phase 2: Additional Databases (Weeks 3-4)
-- [ ] Unpaywall API integration
+### Phase 2: Additional Databases & Quality Improvements
+- [x] Unpaywall API integration for OA enrichment
+- [x] Improved deduplication with fuzzy title matching (>92% similarity)
+- [x] Record merging for richer metadata
+- [x] DOI normalization across providers
 - [ ] EBSCO Discovery Service integration (pending credentials)
 - [ ] JSTOR XML Gateway integration (pending credentials)
-- [ ] Improved deduplication with fuzzy matching
 
 ### Phase 3: Advanced Features (Weeks 5-6)
 - [ ] Search history (database + endpoints)
@@ -479,6 +521,43 @@ Example: `feat: Unpaywall API integration for open access detection`
 
 ---
 
+## 📊 Monitoring & Logs
+
+### Viewing Logs
+
+The application uses structured logging to track all provider interactions. When running the server, you'll see detailed logs:
+
+```
+2026-01-18 10:30:45 - app.services.aggregator - INFO - Search started: query='climate change', page=1
+2026-01-18 10:30:46 - app.services.aggregator - INFO - Provider OpenAlex: status=ok, results=15, response_time=0.823s
+2026-01-18 10:30:47 - app.services.aggregator - INFO - Provider CrossRef: status=ok, results=12, response_time=1.156s
+2026-01-18 10:30:49 - app.services.aggregator - INFO - Unpaywall: enriched 3 results with OA data, response_time=2.341s
+2026-01-18 10:30:49 - app.services.aggregator - INFO - Search complete: 18 final results from 3 databases
+```
+
+### Provider Status in API Response
+
+Every search response includes `provider_status` array showing:
+- Which providers were queried
+- Response time for each
+- Number of results returned
+- Any errors or timeouts
+
+**Example in UI:**
+- ✓ Green badge = Provider succeeded
+- ✗ Red badge = Provider error  
+- ⏱ Orange badge = Provider timeout
+- ⚠ Yellow badge = Partial results
+
+### Key Metrics to Monitor
+
+- **Response Time**: Should be <3s for most queries
+- **Provider Success Rate**: Check how often each provider times out
+- **Result Quality**: Check `relevance_score` distribution
+- **Deduplication Rate**: Monitor `merged X → Y results` in logs
+
+---
+
 ## 🐛 Troubleshooting
 
 ### Common Issues
@@ -501,7 +580,9 @@ curl "https://api.openalex.org/works?search=test&per_page=5"
 **Solution**: 
 1. Check network connection
 2. Reduce `per_page` parameter
-3. Implement caching (coming soon)
+3. Check `provider_status` in API response to identify slow providers
+4. Review server logs for timeout warnings
+5. Individual providers have 30s timeout - slow providers won't block entire search
 
 #### Issue: `RuntimeWarning: coroutine was never awaited`
 **Solution**: Make sure you're using `await` with async functions:
@@ -514,9 +595,24 @@ results = await service.search(query)
 ```
 
 #### Issue: Empty results for common queries
-**Solution**: Check API status pages:
-- OpenAlex: https://docs.openalex.org/
-- CrossRef: https://status.crossref.org/
+**Solution**: 
+1. Check `provider_status` in API response to see which providers failed
+2. Look for timeout or error status indicators
+3. Check API status pages:
+   - OpenAlex: https://docs.openalex.org/
+   - CrossRef: https://status.crossref.org/
+   - Unpaywall: https://unpaywall.org/products/api
+
+#### Issue: Provider shows "timeout" or "error" status
+**Solution**:
+1. **Timeout**: Provider took >30 seconds to respond
+   - Check your internet connection
+   - Try again - provider may be temporarily slow
+   - Other providers will still return results
+2. **Error**: Provider returned an error
+   - Check server logs for detailed error message
+   - Hover over error badge in UI to see error details
+   - Verify API endpoint is accessible: check status pages above
 
 ### Getting Help
 

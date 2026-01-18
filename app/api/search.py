@@ -32,7 +32,7 @@ async def search(
         aggregator = SearchAggregator()
         
         # Perform search
-        results, total_count, databases = await aggregator.search_all(
+        results, total_count, databases, provider_status = await aggregator.search_all(
             query=q,
             page=page,
             per_page=per_page,
@@ -72,7 +72,8 @@ async def search(
             total_results=total_count,
             results=results,
             search_time=round(search_time, 2),
-            databases_searched=databases if databases else ["None"]
+            databases_searched=databases if databases else ["None"],
+            provider_status=provider_status  # new detailed status
         )
         
     except Exception as e:

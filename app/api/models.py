@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import date
 
 class Author(BaseModel):
@@ -20,12 +20,21 @@ class SearchResult(BaseModel):
     cited_by_count: Optional[int] = 0
     relevance_score: float = 0.0
 
+class ProviderStatus(BaseModel):
+    """Status information for a single data provider"""
+    name: str
+    status: str  # "ok", "error", "timeout", "partial"
+    results_count: int = 0
+    response_time: Optional[float] = None
+    error_message: Optional[str] = None
+
 class SearchResponse(BaseModel):
     query: str
     total_results: int
     results: List[SearchResult]
     search_time: float
-    databases_searched: List[str]
+    databases_searched: List[str]  # kept for backward compatibility
+    provider_status: Optional[List[ProviderStatus]] = None  # new detailed status
 
 class SearchRequest(BaseModel):
     query: str

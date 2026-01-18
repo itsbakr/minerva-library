@@ -1,11 +1,20 @@
 import asyncio
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 from difflib import SequenceMatcher
-from app.api.models import SearchResult, Author
+from app.api.models import SearchResult, Author, ProviderStatus
 from app.services.openalex import OpenAlexService
 from app.services.crossref import CrossRefService
 from app.services.unpaywall import UnpaywallService
 import re
+import time
+import logging
+
+# Configure structured logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 class SearchAggregator:
     async def search_all(
@@ -16,86 +25,176 @@ class SearchAggregator:
         year_min=None,
         year_max=None,
         open_access_only=False
-    ) -> tuple[List[SearchResult], int, List[str]]:
+    ) -> Tuple[List[SearchResult], int, List[str], List[ProviderStatus]]:
         """
         Search all databases in parallel and enrich with Unpaywall
-        Returns: (combined_results, total_count, databases_searched)
+        Returns: (combined_results, total_count, databases_searched, provider_status)
         """
+        
+        logger.info(f"Search started: query='{query}', page={page}, per_page={per_page}, "
+                   f"year_min={year_min}, year_max={year_max}, open_access_only={open_access_only}")
         
         # Create service instances
         openalex = OpenAlexService()
         crossref = CrossRefService()
         unpaywall = UnpaywallService()
         
-        # Create search tasks for parallel execution
+        # Track provider status
+        provider_statuses: List[ProviderStatus] = []
+        
+        # Create search tasks for parallel execution with timeout
         # Note: Unpaywall doesn't have a public search API - it's only for DOI lookups
         # So we only search OpenAlex and CrossRef, then enrich with Unpaywall OA data
-        tasks = [
-            openalex.search(
+        
+        db_configs = [
+            ("OpenAlex", openalex.search(
                 query=query, 
                 page=page, 
                 per_page=per_page,
                 year_min=year_min,
                 year_max=year_max,
                 open_access_only=open_access_only
-            ),
-            crossref.search(
+            )),
+            ("CrossRef", crossref.search(
                 query=query,
                 page=page,
                 per_page=per_page,
                 year_min=year_min,
                 year_max=year_max
-            )
+            ))
         ]
         
-        # Execute all searches simultaneously
-        try:
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-        except Exception as e:
-            print(f"Error in gather: {e}")
-            return [], 0, []
-        
-        # Combine results
+        # Execute all searches with timing and error tracking
         all_results = []
         total_count = 0
         databases = []
         
-        db_names = ["OpenAlex", "CrossRef"]
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                print(f"Error in database {db_names[i]}: {result}")
-                continue
-            
-            db_results, db_count = result
-            all_results.extend(db_results)
-            total_count += db_count
-            
-            if db_results:
-                databases.append(db_names[i])
+        for db_name, search_task in db_configs:
+            start_time = time.time()
+            try:
+                # Add timeout of 30 seconds per provider
+                db_results, db_count = await asyncio.wait_for(search_task, timeout=30.0)
+                response_time = round(time.time() - start_time, 3)
+                
+                all_results.extend(db_results)
+                total_count += db_count
+                
+                if db_results:
+                    databases.append(db_name)
+                    status = "ok"
+                elif db_count == 0:
+                    status = "ok"  # no results is not an error
+                else:
+                    status = "partial"
+                
+                provider_statuses.append(ProviderStatus(
+                    name=db_name,
+                    status=status,
+                    results_count=len(db_results),
+                    response_time=response_time
+                ))
+                
+                logger.info(f"Provider {db_name}: status={status}, results={len(db_results)}, "
+                           f"response_time={response_time}s")
+                
+            except asyncio.TimeoutError:
+                response_time = round(time.time() - start_time, 3)
+                error_msg = f"Request timed out after 30 seconds"
+                
+                provider_statuses.append(ProviderStatus(
+                    name=db_name,
+                    status="timeout",
+                    results_count=0,
+                    response_time=response_time,
+                    error_message=error_msg
+                ))
+                
+                logger.warning(f"Provider {db_name}: timeout after {response_time}s")
+                
+            except Exception as e:
+                response_time = round(time.time() - start_time, 3)
+                error_type = type(e).__name__
+                error_msg = f"{error_type}: {str(e)}"
+                
+                provider_statuses.append(ProviderStatus(
+                    name=db_name,
+                    status="error",
+                    results_count=0,
+                    response_time=response_time,
+                    error_message=error_msg
+                ))
+                
+                logger.error(f"Provider {db_name}: error={error_type}, message={str(e)}, "
+                            f"response_time={response_time}s")
         
         # Enrich CrossRef/OpenAlex results with Unpaywall OA info
         # This is Unpaywall's primary purpose - checking DOIs for open access availability
-        print(f"Enriching {len(all_results)} results with Unpaywall OA data...")
+        logger.info(f"Starting Unpaywall enrichment for {len(all_results)} results...")
+        unpaywall_start = time.time()
         results_before = sum(1 for r in all_results if r.is_open_access)
-        all_results = await unpaywall.enrich_with_oa(all_results)
-        results_after = sum(1 for r in all_results if r.is_open_access)
         
-        # Add Unpaywall to databases list if it found any OA versions
-        if results_after > results_before:
-            databases.append("Unpaywall (OA enrichment)")
-            print(f"Unpaywall found {results_after - results_before} additional open access versions")
+        try:
+            all_results = await asyncio.wait_for(
+                unpaywall.enrich_with_oa(all_results), 
+                timeout=60.0  # longer timeout for batch DOI checks
+            )
+            results_after = sum(1 for r in all_results if r.is_open_access)
+            unpaywall_time = round(time.time() - unpaywall_start, 3)
+            enriched_count = results_after - results_before
+            
+            # Add Unpaywall to databases list if it found any OA versions
+            if enriched_count > 0:
+                databases.append("Unpaywall (OA enrichment)")
+                
+                provider_statuses.append(ProviderStatus(
+                    name="Unpaywall",
+                    status="ok",
+                    results_count=enriched_count,
+                    response_time=unpaywall_time
+                ))
+                
+                logger.info(f"Unpaywall: enriched {enriched_count} results with OA data, "
+                           f"response_time={unpaywall_time}s")
+            else:
+                logger.info(f"Unpaywall: no additional OA versions found, response_time={unpaywall_time}s")
+                
+        except asyncio.TimeoutError:
+            unpaywall_time = round(time.time() - unpaywall_start, 3)
+            provider_statuses.append(ProviderStatus(
+                name="Unpaywall",
+                status="timeout",
+                results_count=0,
+                response_time=unpaywall_time,
+                error_message="Enrichment timed out after 60 seconds"
+            ))
+            logger.warning(f"Unpaywall: timeout during enrichment after {unpaywall_time}s")
+            
+        except Exception as e:
+            unpaywall_time = round(time.time() - unpaywall_start, 3)
+            provider_statuses.append(ProviderStatus(
+                name="Unpaywall",
+                status="error",
+                results_count=0,
+                response_time=unpaywall_time,
+                error_message=f"{type(e).__name__}: {str(e)}"
+            ))
+            logger.error(f"Unpaywall: error during enrichment - {type(e).__name__}: {str(e)}")
         
         # Remove duplicates
         deduplicated = self._deduplicate(all_results)
         
         # Filter for open access if requested
         if open_access_only:
+            before_filter = len(deduplicated)
             deduplicated = [r for r in deduplicated if r.is_open_access]
+            logger.info(f"OA filter: {before_filter} → {len(deduplicated)} results")
         
         # Rank by relevance
         ranked = self._rank_results(deduplicated, query)
         
-        return ranked, len(ranked), databases
+        logger.info(f"Search complete: {len(ranked)} final results from {len(databases)} databases")
+        
+        return ranked, len(ranked), databases, provider_statuses
     
     def _deduplicate(self, results: List[SearchResult]) -> List[SearchResult]:
         """
