@@ -373,6 +373,49 @@
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
         
+        /* Source-specific colors */
+        .badge-source-openalex {
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+        
+        .badge-source-crossref {
+            background: rgba(239, 68, 68, 0.2);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        
+        .badge-source-arxiv {
+            background: rgba(185, 28, 28, 0.2);
+            color: #fca5a5;
+            border: 1px solid rgba(185, 28, 28, 0.3);
+        }
+        
+        .badge-source-doaj {
+            background: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        
+        .badge-source-biorxiv, .badge-source-medrxiv {
+            background: rgba(168, 85, 247, 0.2);
+            color: #c084fc;
+            border: 1px solid rgba(168, 85, 247, 0.3);
+        }
+        
+        .badge-source-pmc {
+            background: rgba(20, 184, 166, 0.2);
+            color: #2dd4bf;
+            border: 1px solid rgba(20, 184, 166, 0.3);
+        }
+        
+        .badge-source-textbook {
+            background: rgba(251, 146, 60, 0.2);
+            color: #fb923c;
+            border: 1px solid rgba(251, 146, 60, 0.3);
+        }
+        
         .badge-citations {
             background: rgba(255, 215, 0, 0.15);
             color: #FFD700;
@@ -637,6 +680,22 @@
             }
         }
         
+        function getSourceBadgeClass(source) {
+            // Map source names to CSS class suffixes
+            const sourceStr = (source || '').toLowerCase();
+            
+            if (sourceStr.includes('openalex')) return 'badge-source-openalex';
+            if (sourceStr.includes('crossref')) return 'badge-source-crossref';
+            if (sourceStr.includes('arxiv') && !sourceStr.includes('biorxiv') && !sourceStr.includes('medrxiv')) return 'badge-source-arxiv';
+            if (sourceStr.includes('doaj')) return 'badge-source-doaj';
+            if (sourceStr.includes('biorxiv')) return 'badge-source-biorxiv';
+            if (sourceStr.includes('medrxiv')) return 'badge-source-medrxiv';
+            if (sourceStr.includes('pmc')) return 'badge-source-pmc';
+            if (sourceStr.includes('textbook')) return 'badge-source-textbook';
+            
+            return '';  // Default styling
+        }
+        
         function displayResults(data) {
             const resultsSection = document.getElementById('resultsSection');
             
@@ -710,7 +769,7 @@
                             <span class="meta-item">👤 ${authors}</span>
                             <span class="meta-item">📅 ${year}</span>
                             <span class="meta-item">
-                                <span class="badge badge-source">${result.source}</span>
+                                <span class="badge badge-source ${getSourceBadgeClass(result.source)}">${result.source}</span>
                             </span>
                             ${result.is_open_access ? '<span class="badge badge-oa">🔓 OPEN ACCESS</span>' : ''}
                             <span class="badge badge-citations">📊 ${citations} citations</span>
