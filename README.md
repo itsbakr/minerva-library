@@ -44,7 +44,11 @@ Built as part of Minerva University's work-study program to improve student rese
   - OpenAlex (250+ million scholarly works)
   - CrossRef (140+ million scholarly records)
   - Unpaywall (DOI-based open access enrichment)
-  - More coming soon (EBSCO, JSTOR)
+  - DOAJ (Directory of Open Access Journals - peer-reviewed OA articles)
+  - arXiv (2.3M+ preprints in physics, math, CS, and more)
+  - bioRxiv/medRxiv (Life sciences and medical preprints)
+  - PubMed Central (8M+ biomedical full-text articles)
+  - Open Textbook Library (Free peer-reviewed textbooks)
 
 
 ### Coming Soon
@@ -74,17 +78,25 @@ Built as part of Minerva University's work-study program to improve student rese
 │  • Database-specific formatting                      │
 └──────────────────┬──────────────────────────────────┘
                    ↓
-        ┌──────────┴──────────┬──────────────┐
-        ↓                     ↓              ↓
-┌──────────────┐  ┌──────────────┐  ┌─────────────┐
-│ OpenAlex API │  │ CrossRef API │  │  JSTOR API  │
-│  (Parallel)  │  │  (Parallel)  │  │  (Coming)   │
-└──────┬───────┘  └──────┬───────┘  └──────┬──────┘
-       └──────────┬───────┴────────────────┘
-                  ↓
+    ┌──────────────┼───────────────┬────────────────┐
+    ↓              ↓               ↓                ↓
+┌────────┐  ┌──────────┐  ┌───────────┐  ┌──────────────┐
+│OpenAlex│  │ CrossRef │  │   DOAJ    │  │    arXiv     │
+│ (250M) │  │ (140M)   │  │  (OA)     │  │ (preprints)  │
+└───┬────┘  └────┬─────┘  └─────┬─────┘  └──────┬───────┘
+    │            │              │               │
+    │   ┌────────┴──────────────┴───────────────┘
+    │   │
+    ↓   ↓
+┌────────────────┐  ┌────────────────┐  ┌─────────────────┐
+│ bioRxiv/medRxiv│  │      PMC       │  │ Open Textbook   │
+│ (life science) │  │  (biomedical)  │  │    Library      │
+└───────┬────────┘  └───────┬────────┘  └────────┬────────┘
+        └───────────────────┼────────────────────┘
+                            ↓
 ┌─────────────────────────────────────────────────────┐
 │         Result Aggregation & Processing              │
-│  • Combine results from all databases                │
+│  • Combine results from all 7+ databases             │
 │  • Merge duplicates (DOI + fuzzy title matching)     │
 │  • Enrich with Unpaywall open access data            │
 │  • Rank by advanced relevance algorithm              │
@@ -96,7 +108,7 @@ Built as part of Minerva University's work-study program to improve student rese
 │  • Sorted by relevance score                         │
 │  • Merged metadata from multiple sources             │
 │  • Provider status for observability                 │
-│  • ~1-2 second response time                         │
+│  • ~2-4 second response time                         │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -115,6 +127,11 @@ Built as part of Minerva University's work-study program to improve student rese
 - **[OpenAlex](https://openalex.org/)** - Open scholarly metadata (free, no auth required)
 - **[CrossRef](https://www.crossref.org/)** - Scholarly metadata and DOI resolution (free, no auth required)
 - **[Unpaywall](https://unpaywall.org/)** - Open access discovery via DOI enrichment (free, email required)
+- **[DOAJ](https://doaj.org/)** - Directory of Open Access Journals (free, no auth required)
+- **[arXiv](https://arxiv.org/)** - Physics, math, CS preprints (free, no auth required)
+- **[bioRxiv/medRxiv](https://www.biorxiv.org/)** - Life sciences & medical preprints (free, no auth required)
+- **[PubMed Central](https://pmc.ncbi.nlm.nih.gov/)** - Biomedical open access articles (free, no auth required)
+- **[Open Textbook Library](https://open.umn.edu/opentextbooks/)** - Free peer-reviewed textbooks (free, no auth required)
 - **EBSCO Discovery Service** - Institutional databases (pending credentials)
 - **JSTOR** - Historical and humanities content (pending credentials)
 
@@ -304,10 +321,16 @@ minerva-library-search/
 │       ├── __init__.py
 │       ├── openalex.py            # OpenAlex API integration
 │       ├── crossref.py            # CrossRef API integration
-│       ├── aggregator.py          # Combines results from all APIs
-│       └── [future services]      # EBSCO, JSTOR, Unpaywall
+│       ├── unpaywall.py           # Unpaywall OA enrichment
+│       ├── doaj.py                # DOAJ open access journals
+│       ├── arxiv.py               # arXiv preprint repository
+│       ├── biorxiv.py             # bioRxiv/medRxiv preprints
+│       ├── pmc.py                 # PubMed Central OA articles
+│       ├── open_textbook.py       # Open Textbook Library
+│       └── aggregator.py          # Combines results from all APIs
 ├── .gitignore
 ├── requirements.txt               # Python dependencies
+├── test-UI.html                   # Testing interface
 └── README.md                      # This file
 ```
 
@@ -342,6 +365,31 @@ minerva-library-search/
 - Smart deduplication with record merging (DOI + fuzzy title matching)
 - Advanced relevance ranking with phrase matching and quality signals
 - Provider status tracking and structured logging
+
+**`app/services/doaj.py`**
+- DOAJ (Directory of Open Access Journals) API client
+- Searches peer-reviewed open access journal articles
+- Elasticsearch-based query syntax with year filtering
+
+**`app/services/arxiv.py`**
+- arXiv preprint repository API client
+- Atom XML response parsing
+- Covers physics, math, CS, and quantitative sciences
+
+**`app/services/biorxiv.py`**
+- bioRxiv and medRxiv preprint APIs
+- Life sciences and medical research preprints
+- Date-based API with client-side query filtering
+
+**`app/services/pmc.py`**
+- PubMed Central (PMC) Open Access API
+- Uses NCBI E-utilities (ESearch, ESummary)
+- 8M+ biomedical and life sciences articles
+
+**`app/services/open_textbook.py`**
+- Open Textbook Library API client
+- Free, peer-reviewed educational textbooks
+- Cached dataset with client-side search
 
 ---
 
