@@ -5,6 +5,11 @@ from app.api.models import SearchResult, Author, ProviderStatus
 from app.services.openalex import OpenAlexService
 from app.services.crossref import CrossRefService
 from app.services.unpaywall import UnpaywallService
+from app.services.doaj import DOAJService
+from app.services.arxiv import ArxivService
+from app.services.biorxiv import BioRxivService
+from app.services.open_textbook import OpenTextbookService
+from app.services.pmc import PMCService
 import re
 import time
 import logging
@@ -38,19 +43,28 @@ class SearchAggregator:
         openalex = OpenAlexService()
         crossref = CrossRefService()
         unpaywall = UnpaywallService()
+        doaj = DOAJService()
+        arxiv = ArxivService()
+        biorxiv = BioRxivService()
+        open_textbook = OpenTextbookService()
+        pmc = PMCService()
         
         # Track provider status
         provider_statuses: List[ProviderStatus] = []
         
         # Create search tasks for parallel execution with timeout
         # Note: Unpaywall doesn't have a public search API - it's only for DOI lookups
-        # So we only search OpenAlex and CrossRef, then enrich with Unpaywall OA data
+        # So we search all other providers, then enrich with Unpaywall OA data
+        
+        # Reduce per_page for each provider to avoid too many results
+        # We want roughly per_page total after deduplication
+        provider_per_page = max(5, per_page // 3)  # Each provider gets ~1/3 of requested
         
         db_configs = [
             ("OpenAlex", openalex.search(
                 query=query, 
                 page=page, 
-                per_page=per_page,
+                per_page=provider_per_page,
                 year_min=year_min,
                 year_max=year_max,
                 open_access_only=open_access_only
@@ -58,10 +72,45 @@ class SearchAggregator:
             ("CrossRef", crossref.search(
                 query=query,
                 page=page,
-                per_page=per_page,
+                per_page=provider_per_page,
                 year_min=year_min,
                 year_max=year_max
-            ))
+            )),
+            ("DOAJ", doaj.search(
+                query=query,
+                page=page,
+                per_page=provider_per_page,
+                year_min=year_min,
+                year_max=year_max
+            )),
+            ("arXiv", arxiv.search(
+                query=query,
+                page=page,
+                per_page=provider_per_page,
+                year_min=year_min,
+                year_max=year_max
+            )),
+            ("bioRxiv", biorxiv.search(
+                query=query,
+                page=page,
+                per_page=provider_per_page,
+                year_min=year_min,
+                year_max=year_max
+            )),
+            ("PMC", pmc.search(
+                query=query,
+                page=page,
+                per_page=provider_per_page,
+                year_min=year_min,
+                year_max=year_max
+            )),
+            ("Open Textbook Library", open_textbook.search(
+                query=query,
+                page=page,
+                per_page=provider_per_page,
+                year_min=year_min,
+                year_max=year_max
+            )),
         ]
         
         # Execute all searches with timing and error tracking
@@ -302,10 +351,17 @@ class SearchAggregator:
 
     def _source_priority(self, source: str) -> int:
         # Smaller number = higher priority
+        # OpenAlex and CrossRef have the most complete metadata
         order = {
             "OpenAlex": 0,
             "CrossRef": 1,
-            "Unpaywall": 2,
+            "PMC": 2,
+            "DOAJ": 3,
+            "arXiv": 4,
+            "bioRxiv": 5,
+            "medRxiv": 6,
+            "Open Textbook Library": 7,
+            "Unpaywall": 8,
         }
         return order.get(source, 99)
 
