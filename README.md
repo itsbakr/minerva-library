@@ -330,7 +330,7 @@ minerva-library-search/
 │       └── aggregator.py          # Combines results from all APIs
 ├── .gitignore
 ├── requirements.txt               # Python dependencies
-├── test-UI.html                   # Testing interface
+├── frontend/                      # React frontend application
 └── README.md                      # This file
 ```
 
@@ -395,18 +395,33 @@ minerva-library-search/
 
 ## 💻 Development
 
-### Running in Development Mode
+### Running the Backend
 
 ```bash
+# From the root directory:
 # With auto-reload (detects file changes)
 uvicorn app.main:app --reload
 
 # Custom host and port
 uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
-
-# With log level
-uvicorn app.main:app --reload --log-level debug
 ```
+
+### Running the React Frontend
+
+The new frontend is built with React and Vite. It handles client-side pagination and communicates with the FastAPI backend on port 8000.
+
+```bash
+# In a new terminal, navigate to the frontend directory
+cd frontend
+
+# Install dependencies (only needed once)
+npm install
+
+# Start the Vite development server
+npm run dev
+```
+
+Then open `http://localhost:5173` in your browser.
 
 ### Adding a New Database API
 
