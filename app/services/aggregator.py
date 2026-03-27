@@ -7,7 +7,6 @@ from app.services.crossref import CrossRefService
 from app.services.unpaywall import UnpaywallService
 from app.services.doaj import DOAJService
 from app.services.arxiv import ArxivService
-from app.services.biorxiv import BioRxivService
 from app.services.open_textbook import OpenTextbookService
 from app.services.pmc import PMCService
 import re
@@ -45,7 +44,6 @@ class SearchAggregator:
         unpaywall = UnpaywallService()
         doaj = DOAJService()
         arxiv = ArxivService()
-        biorxiv = BioRxivService()
         open_textbook = OpenTextbookService()
         pmc = PMCService()
         
@@ -84,13 +82,6 @@ class SearchAggregator:
                 year_max=year_max
             )),
             ("arXiv", arxiv.search(
-                query=query,
-                page=page,
-                per_page=provider_per_page,
-                year_min=year_min,
-                year_max=year_max
-            )),
-            ("bioRxiv", biorxiv.search(
                 query=query,
                 page=page,
                 per_page=provider_per_page,
@@ -358,10 +349,8 @@ class SearchAggregator:
             "PMC": 2,
             "DOAJ": 3,
             "arXiv": 4,
-            "bioRxiv": 5,
-            "medRxiv": 6,
-            "Open Textbook Library": 7,
-            "Unpaywall": 8,
+            "Open Textbook Library": 5,
+            "Unpaywall": 6,
         }
         return order.get(source, 99)
 
@@ -487,66 +476,76 @@ class SearchAggregator:
         query_words = set(q_words)
         
         for result in results:
-            score = 0.0
+            base_score = 0.0
             title = (result.title or "").strip()
             title_norm = self._normalize_title(title) or ""
             abstract_norm = ""
             if result.abstract:
                 abstract_norm = re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", result.abstract.lower())).strip()
             
-            # Open access bonus (increased weight)
-            if result.is_open_access:
-                score += 60  # Increased from 50
-            if result.open_access_url:
-                score += 10  # direct OA link quality boost
-            
-            # Recent publication bonus
-            if result.publication_year:
-                if result.publication_year >= 2023:
-                    score += 30
-                elif result.publication_year >= 2020:
-                    score += 20
-                elif result.publication_year >= 2015:
-                    score += 10
-
-            # DOI present = generally higher quality / easier to access
-            if result.doi:
-                score += 8
-            
-            # Citation count bonus (capped at 20 points)
-            if result.cited_by_count:
-                score += min(result.cited_by_count / 10, 20)
-            
-            # Title phrase + keyword matching
+            # 1. Base text matching score (Relevance first)
             if title_norm and query_words:
                 title_words = set(title_norm.split())
                 matches = len(query_words & title_words)
-                score += matches * 12
+                base_score += matches * 12
 
                 # Phrase boost if the normalized query appears in normalized title
                 if q_norm and q_norm in title_norm:
-                    score += 40
+                    base_score += 40
 
                 # Coverage boost (how much of the query is present)
                 coverage = matches / max(len(query_words), 1)
-                score += coverage * 20
+                base_score += coverage * 20
 
                 # Soft similarity between query and title (helps short queries)
-                score += self._calculate_similarity(q_norm, title_norm) * 15
+                base_score += self._calculate_similarity(q_norm, title_norm) * 15
 
             # Abstract keyword matching (lighter weight)
             if abstract_norm and query_words:
                 abs_words = set(abstract_norm.split())
                 abs_matches = len(query_words & abs_words)
-                score += abs_matches * 4
+                base_score += abs_matches * 4
                 if q_norm and q_norm in abstract_norm:
-                    score += 10
+                    base_score += 10
 
+            # If the base score is very low, it's not a relevant match. Keep score low.
+            if base_score < 5:
+                result.relevance_score = round(base_score, 2)
+                continue
+            
+            # 2. Apply multipliers for metadata
+            multiplier = 1.0
+            
+            # Open access bonus
+            if result.is_open_access:
+                multiplier *= 1.2
+            if result.open_access_url:
+                multiplier *= 1.1
+            
+            # Recent publication bonus
+            if result.publication_year:
+                if result.publication_year >= 2023:
+                    multiplier *= 1.2
+                elif result.publication_year >= 2020:
+                    multiplier *= 1.1
+                elif result.publication_year >= 2015:
+                    multiplier *= 1.05
+
+            # DOI present = generally higher quality
+            if result.doi:
+                multiplier *= 1.05
+            
+            final_score = base_score * multiplier
+            
+            # Citation count bonus (capped at 20 points, added after multiplier)
+            if result.cited_by_count:
+                final_score += min(result.cited_by_count / 10, 20)
+            
             # Penalize placeholder titles
             if (result.title or "").strip().lower() == "untitled":
-                score -= 20
+                final_score -= 20
             
-            result.relevance_score = round(score, 2)
+            result.relevance_score = round(max(0.0, final_score), 2)
         
         # Sort by score (descending)
         return sorted(results, key=lambda x: x.relevance_score, reverse=True)
