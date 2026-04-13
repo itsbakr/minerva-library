@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { getAPA, getMLA, getChicago, getBibTeX } from '../utils/citations';
 
 const getSourceBadgeClass = (source) => {
     const sourceStr = (source || '').toLowerCase();
